@@ -1,7 +1,7 @@
-from typing import List
+from typing import List, Dict
+from collections import Counter
 
 from .cortical_column import CorticalColumn
-
 
 class Cortex:
     """Collection of cortical columns performing voting."""
@@ -9,18 +9,20 @@ class Cortex:
     def __init__(self, columns: List[CorticalColumn]):
         self.columns = columns
 
-    def vote(self, feature_inputs: List[str]) -> List[str]:
-        assert len(feature_inputs) == len(self.columns)
-        candidate_sets = []
-        for col, feat in zip(self.columns, feature_inputs):
-            candidate_sets.append(set(col.predict_objects(feat)))
-        if not candidate_sets:
-            return []
-        consensus = set.intersection(*candidate_sets)
-        if consensus:
-            return sorted(consensus)
-        else:
-            # fallback: union of candidates
-            union = set().union(*candidate_sets)
-            return sorted(union)
+    def sense_and_learn(self, movement, feature_input: str, object_name: str):
+        """Update all columns and instruct them to learn the feature-location pair."""
+        for col in self.columns:
+            col.sense(movement, feature_input, learn=True, obj=object_name)
 
+    def sense_and_vote(self, movement, feature_input: str) -> Dict[str, int]:
+        """Update all columns and aggregate their votes."""
+        all_predictions = []
+        for col in self.columns:
+            # First, update the column's internal location based on movement
+            col.sense(movement, feature_input, learn=False)
+            # Then, ask it to predict based on its new location
+            predictions = col.predict_objects(feature_input)
+            all_predictions.extend(predictions)
+        
+        # Return a count of each object prediction
+        return Counter(all_predictions)

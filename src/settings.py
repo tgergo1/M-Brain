@@ -1,0 +1,24 @@
+# Screen dimensions and grid
+SCREEN_WIDTH = 800
+SCREEN_HEIGHT = 600
+CELL_SIZE = 20
+
+# Colors
+BG_COLOR = (240, 240, 240)
+GRID_COLOR = (200, 200, 200)
+AGENT_COLOR = (255, 0, 0)
+BLACK = (0, 0, 0)
+WHITE = (255, 255, 255)
+
+# Palettes for objects and features to make them visually distinct
+OBJECT_COLORS = [
+    (31, 119, 180), (255, 127, 14), (44, 160, 44), 
+    (214, 39, 40), (148, 103, 189)
+]
+FEATURE_COLORS = [
+    (174, 199, 232), (255, 187, 120), (152, 223, 138), 
+    (255, 152, 150), (197, 176, 213), (196, 156, 148)
+]
+
+# Font
+FONT_SIZE = 24
