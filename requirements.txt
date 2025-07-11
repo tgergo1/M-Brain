@@ -1,0 +1,6 @@
+numpy
+pygame
+tqdm
+matplotlib
+seaborn
+pandas
