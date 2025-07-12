@@ -1,9 +1,9 @@
-# grand_simulation.py
-
 import numpy as np
 import json
 from tqdm import tqdm
 from scipy.spatial.transform import Rotation as R
+from scipy.spatial import cKDTree
+from collections import Counter
 
 from src import config
 from src.dataset_generator import generate_dataset
@@ -11,6 +11,7 @@ from src.grid_cells import GridCellModule
 from src.object_model import ObjectModel
 from src.cortical_column import CorticalColumn
 from src.cortex import Cortex
+
 
 def create_rotation_matrix(angles):
     """Creates a 3x3 rotation matrix from Euler angles (roll, pitch, yaw)."""
@@ -21,7 +22,6 @@ def build_cortex_from_config() -> Cortex:
     model = ObjectModel()
     columns = []
     for _ in range(config.NUM_CORTICAL_COLUMNS):
-        # Create a proper rotation matrix for each module
         modules = [
             GridCellModule(
                 scale=m['scale'],
@@ -33,10 +33,13 @@ def build_cortex_from_config() -> Cortex:
     return Cortex(columns)
 
 def generate_sensory_sequence(obj_features, num_steps, move_std_dev):
-    """Simulates a sensor moving over an object's surface."""
+    """OPTIMIZED: Simulates a sensor moving over an object's surface using a k-d tree."""
     feature_locations = list(obj_features.keys())
     if not feature_locations:
         return [], []
+
+    feature_array = np.array(feature_locations)
+    kdtree = cKDTree(feature_array)
 
     movements = np.random.normal(scale=move_std_dev, size=(num_steps, 3))
     features = []
@@ -44,8 +47,8 @@ def generate_sensory_sequence(obj_features, num_steps, move_std_dev):
     current_pos = np.array(feature_locations[0])
     for move in movements:
         current_pos += move
-        distances = [np.linalg.norm(current_pos - np.array(loc)) for loc in feature_locations]
-        closest_feature_loc = feature_locations[np.argmin(distances)]
+        distance, index = kdtree.query(current_pos)
+        closest_feature_loc = feature_locations[index]
         features.append(obj_features[closest_feature_loc])
         
     return movements, features
@@ -58,27 +61,35 @@ def main():
     cortex = build_cortex_from_config()
 
     # 2. Generate Datasets
-    print("Generating training and testing datasets...")
-    train_data = generate_dataset(config.NUM_OBJECT_TYPES, config.FEATURES_PER_OBJECT, config.DATASET_SIZE_TRAIN)
-    test_data = generate_dataset(config.NUM_OBJECT_TYPES, config.FEATURES_PER_OBJECT, config.DATASET_SIZE_TEST)
+    print("Generating datasets...")
+    train_data = generate_dataset(
+        config.NUM_OBJECT_TYPES, config.FEATURES_PER_OBJECT, config.DATASET_SIZE_TRAIN, desc="Train"
+    )
+    test_data = generate_dataset(
+        config.NUM_OBJECT_TYPES, config.FEATURES_PER_OBJECT, config.DATASET_SIZE_TEST, desc="Test"
+    )
 
     # 3. Training Phase
-    print("Starting training phase...")
+    print("\nStarting training phase...")
+    # Outer loop for object classes
     for obj_name, instances in tqdm(train_data.items(), desc="Training on object classes"):
-        for instance_features in instances:
+        # --- FIX: Add inner progress bar for instances ---
+        # This will show progress within each class, preventing the appearance of being stuck.
+        # `leave=False` makes this bar disappear after it's done, keeping the output clean.
+        for instance_features in tqdm(instances, desc=f"  ↳ Instances of {obj_name}", leave=False):
             movements, features = generate_sensory_sequence(
                 instance_features, config.SENSORY_STEPS_PER_OBJECT, config.MOVEMENT_STD_DEV
             )
             cortex.process_sensory_sequence(movements, features, learn=True, obj_name=obj_name)
     
     # 4. Testing Phase
-    print("Starting testing phase...")
+    print("\nStarting testing phase...")
     correct_predictions = 0
     total_predictions = 0
     confusion_matrix = {name: Counter() for name in test_data.keys()}
 
-    for true_obj_name, instances in tqdm(test_data.items(), desc="Testing on object classes"):
-        for instance_features in instances:
+    for true_obj_name, instances in tqdm(test_data.items(), desc="Testing object classes"):
+        for instance_features in tqdm(instances, desc=f"  ↳ Instances of {true_obj_name}", leave=False):
             movements, features = generate_sensory_sequence(
                 instance_features, config.SENSORY_STEPS_PER_OBJECT, config.MOVEMENT_STD_DEV
             )
@@ -96,9 +107,11 @@ def main():
     print(f"\n--- Simulation Complete ---")
     print(f"Final Recognition Accuracy: {accuracy:.2f}%")
 
-    # Filter out non-serializable parts of config for JSON export
     serializable_config = {k: v for k, v in vars(config).items() if not k.startswith('__')}
-    
+    for k, v in serializable_config.items():
+        if isinstance(v, np.ndarray):
+            serializable_config[k] = v.tolist()
+
     metrics = {
         "accuracy": accuracy,
         "correct_predictions": correct_predictions,
@@ -112,6 +125,7 @@ def main():
         json.dump(metrics, f, indent=4)
     
     print("\nTo visualize results, run: python plot_results.py")
+
 
 if __name__ == "__main__":
     main()
