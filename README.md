@@ -1,54 +1,100 @@
-# M-Brain: Interactive Simulation
+# M-Brain: A Grand-Scale cortical simulation
 
-This repository contains an interactive, visual simulation inspired by the Thousand Brains Theory of the neocortex. It demonstrates how a collection of cortical columns can learn feature-location pairs through movement and reach a consensus on object identity through voting.
+This repository provides a high-performance, parallelized simulation environment for exploring computational concepts inspired by the Thousand Brains Theory. The project has evolved from a simple interactive demo into a research tool designed for large-scale, data-driven experiments on object recognition and learning.
 
-The simulation uses Pygame to create a graphical interface where you can control an agent and observe its learning and prediction processes in real-time.
+The simulation first trains a distributed cortical model on a procedurally generated dataset of 3D objects. It then evaluates the model's recognition accuracy and provides a suite of tools for quantitative and architectural analysis. The entire process is designed to leverage multi-core CPU architectures for efficient execution.
 
-![Simulation Screenshot](https://i.imgur.com/your-screenshot-url.png)  ## Features
+## Core concepts
 
--   **Interactive Environment**: Control an agent with your keyboard to explore a world with different objects.
--   **Real-time Visualization**: See the agent, objects, and the cortex's votes displayed graphically.
--   **On-the-Fly Learning**: Switch to "Learning Mode" to teach the cortex about new objects.
--   **Robust Location Encoding**: Each cortical column uses a system of multiple grid cell modules for more robust path integration.
+The simulation is built upon a few key components that model the theory's principles:
 
-## How It Works
+  * **ObjectModel**: A centralized knowledge base that stores feature-location associations for all learned objects. This acts as the "atlas" that cortical columns reference.
+  * **GridCellSystem**: Each cortical column contains its own location system, composed of multiple grid cell modules with unique scales and orientations. This system allows each column to determine its position on an object's surface through path integration.
+  * **CorticalColumn**: The fundamental processing unit of the simulation. It receives a sensory feature and, by combining it with its current location, generates a "vote" for the identity of the object being observed.
+  * **Cortex**: A collection of thousands of cortical columns that process sensory input in parallel. The Cortex aggregates the votes from all columns to reach a robust consensus on the object's identity, which is its primary recognition mechanism.
 
--   **ObjectModel**: Stores the association between an object, a specific feature of that object, and its location relative to other features on that object.
--   **GridCellSystem**: Each column tracks its location in the environment using a set of grid cell modules, updating its position based on movement (path integration).
--   **CorticalColumn**: A single column combines a location signal (from its grid cells) with a sensory feature input. In learning mode, it forms an association. In prediction mode, it uses its current location and a sensed feature to predict what object it might be observing.
--   **Cortex**: A collection of columns. When the agent "senses" a feature, every column receives that input. Each column votes for objects that could have that feature at its current location. The votes are aggregated to form a consensus hypothesis about the object's identity.
+## Project workflow
 
-## Getting Started
+The project is structured as a three-step workflow: **Compute**, **Analyze**, and **Visualize**.
+
+1.  **Compute**: Run the high-performance, parallelized simulation to train the model and generate performance metrics.
+2.  **Analyze**: Use plotting scripts to analyze the quantitative results of the simulation, such as accuracy and confusion matrices.
+3.  **Visualize**: Generate high-quality diagrams of the simulated network architecture from both a high-level and a neuron-centric perspective.
+
+## Installation
 
 ### Prerequisites
 
--   Python 3.8+
--   Pygame and NumPy libraries
+  * Python 3.8+
+  * Git
+  * Graphviz (system-level dependency)
 
-### Installation
+### Setup
 
 1.  **Clone the repository:**
+
     ```bash
-    git clone [https://github.com/tgergo1/m-brain.git](https://github.com/tgergo1/m-brain.git)
+    git clone https://github.com/tgergo1/m-brain.git
     cd m-brain
     ```
 
-2.  **Install the required packages:**
+2.  **Install Python dependencies:**
+
     ```bash
     pip install -r requirements.txt
     ```
 
-### Running the Simulation
+3.  **Install the Graphviz Engine:**
+    The Python `graphviz` library is a wrapper around the C-based Graphviz engine. You must install the engine separately.
 
-Execute the main simulation script from the root directory of the project:
+      * **macOS (using Homebrew):**
+        ```bash
+        brew install graphviz
+        ```
+      * **Linux (Ubuntu/Debian):**
+        ```bash
+        sudo apt-get update
+        sudo apt-get install graphviz
+        ```
+      * **Windows:**
+        Download an installer from the [official Graphviz website](https://graphviz.org/download/) and ensure its `bin` directory is added to your system's PATH.
+
+## Usage guide
+
+Execute the following commands from the root directory of the project.
+
+### Step 1: Run the grand-scale simulation
+
+This command starts the main simulation. It will use all available CPU cores to generate the dataset, train the cortex, and test its performance. This is the most computationally intensive step.
 
 ```bash
-python main.py
+python grand_simulation.py
 ```
 
-### Controls
+Upon completion, this will generate a `results/simulation_metrics.json` file containing all performance data.
 
--   **Arrow Keys**: Move the agent.
--   **M**: Toggle between **PREDICTING** and **LEARNING** modes.
--   **1, 2, 3**: In **LEARNING** mode, select which object you are teaching the agent about ('Cup', 'Pen', or 'Phone').
--   **Q**: Quit the simulation.
+### Step 2: Analyze quantitative results
+
+Run the plotting script to generate a confusion matrix from the simulation results.
+
+```bash
+python plot_results.py
+```
+
+This will display the plot and save it as `results/confusion_matrix.png`.
+
+### Step 3: Visualize the network architectures
+
+You can generate two different views of the simulated network.
+
+  * **High-level architectural diagram:**
+
+    ```bash
+    python visualize_network.py
+    ```
+
+    This creates a block diagram saved as `results/cortex_architecture.png`.
+
+## Configuration
+
+All key parameters for the simulation can be modified in `src/config.py`. This includes the number of cortical columns, the size of the dataset, the complexity of the grid cell systems, and more, allowing for easy experimentation.
