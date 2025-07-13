@@ -7,10 +7,10 @@ from collections import Counter, defaultdict
 import multiprocessing as mp
 import time
 import datetime
-import types
+import types # Import the types module to check for modules
 
-# --- Import the main configuration for the full-scale run ---
-from src import config
+# --- Import the test configuration ---
+from src import config_test as config
 from src.dataset_generator import generate_dataset
 from src.grid_cells import GridCellModule
 from src.object_model import ObjectModel
@@ -23,13 +23,13 @@ def log(message):
 def create_rotation_matrix(angles):
     return R.from_euler('xyz', angles, degrees=False).as_matrix()
 
-def generate_sensory_sequence(obj_features, num_steps, move_std_dev):
+def generate_sensory_sequence(obj_features, num_steps):
     feature_locations = list(obj_features.keys())
     if not feature_locations:
         return [], []
     feature_array = np.array(feature_locations)
     kdtree = cKDTree(feature_array)
-    movements = np.random.normal(scale=move_std_dev, size=(num_steps, 3))
+    movements = np.random.normal(scale=0.2, size=(num_steps, 3))
     features = []
     current_pos = np.array(feature_locations[0])
     for move in movements:
@@ -58,7 +58,7 @@ def training_worker(args):
     cortex = build_cortex_from_config(object_model)
     for instance_features in tqdm(instances, desc=f"  ↳ Core {position}: Train {obj_name}", position=position, leave=False):
         movements, features = generate_sensory_sequence(
-            instance_features, config.SENSORY_STEPS_PER_OBJECT, config.MOVEMENT_STD_DEV
+            instance_features, config.SENSORY_STEPS_PER_OBJECT
         )
         cortex.process_sensory_sequence(movements, features, learn=True, obj_name=obj_name)
     return obj_name, cortex.columns[0].object_model.storage
@@ -72,7 +72,7 @@ def testing_worker(args):
     correct_count, total_count = 0, len(instances)
     for instance_features in tqdm(instances, desc=f"  ↳ Core {position}: Test {true_obj_name}", position=position, leave=False):
         movements, features = generate_sensory_sequence(
-            instance_features, config.SENSORY_STEPS_PER_OBJECT, config.MOVEMENT_STD_DEV
+            instance_features, config.SENSORY_STEPS_PER_OBJECT
         )
         votes = cortex.process_sensory_sequence(movements, features, learn=False)
         if votes:
@@ -84,11 +84,11 @@ def testing_worker(args):
 
 def main():
     start_time = time.time()
-    log("--- Grand Scale M-Brain Simulation (Stable Version) ---")
+    log("--- SMOKE TEST: Quick Pipeline Verification (Stable Version) ---")
 
-    log("Phase 1: Generating datasets...")
-    train_data = generate_dataset(config.NUM_OBJECT_TYPES, config.FEATURES_PER_OBJECT, config.DATASET_SIZE_TRAIN, desc="Train")
-    test_data = generate_dataset(config.NUM_OBJECT_TYPES, config.FEATURES_PER_OBJECT, config.DATASET_SIZE_TEST, desc="Test")
+    log("Phase 1: Generating minimal datasets...")
+    train_data = generate_dataset(config.NUM_OBJECT_TYPES, config.FEATURES_PER_OBJECT, config.DATASET_SIZE_TRAIN, desc="Test Train")
+    test_data = generate_dataset(config.NUM_OBJECT_TYPES, config.FEATURES_PER_OBJECT, config.DATASET_SIZE_TEST, desc="Test Test")
     log("Phase 1: Dataset generation complete.")
 
     log("Phase 2: Parallel Training Start...")
@@ -124,14 +124,16 @@ def main():
     accuracy = (total_correct / total_preds) * 100 if total_preds > 0 else 0
     end_time = time.time()
     print("\n" + "="*40)
-    log("SIMULATION COMPLETE")
+    log("SMOKE TEST COMPLETE")
     print("="*40)
     log(f"Total Execution Time: {end_time - start_time:.2f} seconds")
-    log(f"Final Recognition Accuracy: {accuracy:.2f}%")
+    log(f"Final Recognition Accuracy: {accuracy:.2f}% (Note: low accuracy is expected with minimal data)")
     print("="*40)
 
+    # --- FIX: Intelligent serialization of the config file ---
     serializable_config = {}
     for key, value in vars(config).items():
+        # Only include variables that are not modules and do not start with '__'
         if not key.startswith('__') and not isinstance(value, types.ModuleType):
             if isinstance(value, np.ndarray):
                 serializable_config[key] = value.tolist()
@@ -145,7 +147,7 @@ def main():
         "config": serializable_config,
         "confusion_matrix": {k: dict(v) for k, v in final_cm.items()}
     }
-    log(f"Saving final metrics to {config.RESULTS_FILE}...")
+    log(f"Saving test metrics to {config.RESULTS_FILE}...")
     with open(config.RESULTS_FILE, 'w', encoding='utf-8') as f:
         json.dump(metrics, f, indent=4)
     log("Save complete.")

@@ -1,6 +1,9 @@
 numpy
-pygame
 tqdm
+scipy
 matplotlib
 seaborn
 pandas
+graphviz
+jax
+jax-metal
