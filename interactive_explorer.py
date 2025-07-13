@@ -3,9 +3,8 @@ import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.widgets import Button
 from mpl_toolkits.mplot3d import Axes3D
-import textwrap
+import os
 
-# Use a specific results file path to avoid circular dependency
 RESULTS_FILE_PATH = "results/simulation_metrics.json"
 
 class ResultsExplorer:
@@ -15,25 +14,21 @@ class ResultsExplorer:
         self.object_names = sorted(self.dataset.keys())
         self.current_obj_index = 0
 
-        # --- Create the main figure and subplots ---
         self.fig = plt.figure(figsize=(16, 9))
         self.fig.canvas.manager.set_window_title('M-Brain Interactive Results Explorer')
-        
-        # Define layout using gridspec for more control
+
         gs = self.fig.add_gridspec(3, 3)
         self.ax_3d = self.fig.add_subplot(gs[:, 0], projection='3d')
         self.ax_info = self.fig.add_subplot(gs[0, 1])
         self.ax_cm = self.fig.add_subplot(gs[1:, 1:])
 
-        # --- Navigation Buttons ---
         self.ax_prev = plt.axes([0.35, 0.05, 0.1, 0.075])
         self.ax_next = plt.axes([0.46, 0.05, 0.1, 0.075])
         self.btn_prev = Button(self.ax_prev, 'Previous Object')
         self.btn_next = Button(self.ax_next, 'Next Object')
         self.btn_prev.on_clicked(self.prev_object)
         self.btn_next.on_clicked(self.next_object)
-        
-        # --- Initial Draws ---
+
         self.draw_info_panel()
         self.draw_confusion_matrix()
         self.update_3d_plot()
@@ -46,7 +41,7 @@ class ResultsExplorer:
 
         accuracy = self.metrics.get('accuracy', 0)
         config = self.metrics.get('config', {})
-        
+
         info_text = (
             f"Overall Accuracy: {accuracy:.2f}%\n"
             f"\n--- Cortex Configuration ---\n"
@@ -57,7 +52,7 @@ class ResultsExplorer:
             f"Training Instances: {config.get('DATASET_SIZE_TRAIN', 'N/A')}\n"
             f"Testing Instances: {config.get('DATASET_SIZE_TEST', 'N/A')}"
         )
-        
+
         self.ax_info.text(0.05, 0.95, info_text, transform=self.ax_info.transAxes,
                           verticalalignment='top', family='monospace', fontsize=10)
 
@@ -66,18 +61,17 @@ class ResultsExplorer:
         self.ax_cm.clear()
         cm_data = self.metrics.get("confusion_matrix", {})
         labels = sorted(cm_data.keys())
-        
+
         if not labels:
             self.ax_cm.text(0.5, 0.5, "No Confusion Matrix Data", ha='center', va='center')
             return
 
         cm_array = np.array([[cm_data.get(r, {}).get(c, 0) for c in labels] for r in labels])
-        
+
         im = self.ax_cm.imshow(cm_array, cmap="viridis")
         self.ax_cm.set_xticks(np.arange(len(labels)), labels=labels, rotation=45, ha="right")
         self.ax_cm.set_yticks(np.arange(len(labels)), labels=labels)
-        
-        # Loop over data dimensions and create text annotations.
+
         for i in range(len(labels)):
             for j in range(len(labels)):
                 self.ax_cm.text(j, i, cm_array[i, j], ha="center", va="center", color="w")
@@ -89,15 +83,14 @@ class ResultsExplorer:
         """Updates the 3D scatter plot to show the current object."""
         self.ax_3d.clear()
         obj_name = self.object_names[self.current_obj_index]
-        # We visualize the first instance of the object class
         obj_instance = self.dataset[obj_name][0]
-        
+
         locations = np.array(list(obj_instance.keys()))
         if locations.size == 0:
             return
 
         x, y, z = locations[:, 0], locations[:, 1], locations[:, 2]
-        
+
         self.ax_3d.scatter(x, y, z, c=z, cmap='inferno', marker='o')
         self.ax_3d.set_title(f"Feature Map:\n{obj_name}", fontsize=14)
         self.ax_3d.set_xlabel("X coordinate")
@@ -124,20 +117,18 @@ def main():
         print("Please run 'python grand_simulation.py' first.")
         return
 
-    # To visualize the objects, we need to generate one instance of the dataset
-    # This is lightweight and avoids saving the entire large dataset to disk
     print("Generating a sample dataset for visualization...")
     from src.dataset_generator import generate_dataset
     config = metrics.get('config', {})
     sample_dataset = generate_dataset(
         config.get('NUM_OBJECT_TYPES', 10),
         config.get('FEATURES_PER_OBJECT', 50),
-        1, # Only need one instance per class for visualization
+        1,
         desc="Sample Viz"
     )
 
     explorer = ResultsExplorer(metrics, sample_dataset)
-    plt.tight_layout(rect=[0, 0.1, 1, 0.95]) # Adjust layout to prevent overlap
+    plt.tight_layout(rect=[0, 0.1, 1, 0.95])
     plt.show()
 
 if __name__ == "__main__":

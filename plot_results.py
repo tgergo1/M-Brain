@@ -3,13 +3,14 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 import pandas as pd
 import numpy as np
+import os
 
 from src.config import RESULTS_FILE
 
 def plot_confusion_matrix(metrics):
     """Generates and saves a confusion matrix plot."""
     print("Generating confusion matrix plot...")
-    
+
     cm_data = metrics.get("confusion_matrix", {})
     if not cm_data:
         print("No confusion matrix data found in results.")
@@ -29,9 +30,11 @@ def plot_confusion_matrix(metrics):
     plt.title(f"Confusion Matrix (Accuracy: {metrics.get('accuracy', 0):.2f}%)")
     plt.ylabel('True Object Class')
     plt.xlabel('Predicted Object Class')
-    
-    plt.savefig("results/confusion_matrix.png")
-    print("Plot saved to results/confusion_matrix.png")
+
+    output_path = "results/confusion_matrix.png"
+    os.makedirs(os.path.dirname(output_path), exist_ok=True)
+    plt.savefig(output_path)
+    print(f"Plot saved to {output_path}")
     plt.show()
 
 def main():

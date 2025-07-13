@@ -1,5 +1,3 @@
-# src/config.py
-
 import numpy as np
 
 # --- Simulation Parameters ---
@@ -10,7 +8,6 @@ DATASET_SIZE_TEST = 50
 
 # --- Cortex Parameters ---
 NUM_CORTICAL_COLUMNS = 1000
-# Define orientations as tuples of Euler angles (roll, pitch, yaw) in radians
 GRID_CELL_MODULES = [
     {'scale': 1.5, 'orientation_angles': (0, 0, 0)},
     {'scale': 2.0, 'orientation_angles': (0, np.pi/4, 0)},

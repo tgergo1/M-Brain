@@ -7,3 +7,4 @@ pandas
 graphviz
 jax
 jax-metal
+pygame
