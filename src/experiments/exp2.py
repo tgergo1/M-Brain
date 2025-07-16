@@ -4,9 +4,16 @@ from mpl_toolkits.mplot3d import Axes3D
 import pickle
 import gzip
 import os
-from concurrent.futures import ThreadPoolExecutor, as_completed
+import logging
+import sys
 from tqdm import tqdm
-import struct
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s | %(levelname)s | %(message)s",
+    datefmt="%H:%M:%S",
+    handlers=[logging.StreamHandler(sys.stdout)]
+)
 
 class Neuron:
     def __init__(self, x, y, z, tau=20.0, v_rest=-70.0):
@@ -59,6 +66,8 @@ class EnergyModel:
         self._build_connections()
 
     def _build_connections(self):
+        logging.info("Building synapses between layers...")
+        total = 0
         for i in range(len(self.layers) - 1):
             l1, l2 = self.layers[i], self.layers[i + 1]
             for n1 in l1.neurons:
@@ -67,6 +76,8 @@ class EnergyModel:
                     syn = Synapse(n1, n2, w)
                     self.synapses.append(syn)
                     n1.connections.append(syn)
+                    total += 1
+        logging.info(f"Created {total} synapses")
 
     def feed(self, img):
         img = img.flatten()
@@ -107,6 +118,7 @@ class EnergyModel:
 
 class ThousandsBrain:
     def __init__(self):
+        logging.info("Initializing ThousandsBrain…")
         self.layers = [
             Layer("input", 784, [(0, 28), (0, 28), (0, 1)]),
             Layer("hidden1", 400, [(0, 20), (0, 20), (1, 5)]),
@@ -134,25 +146,38 @@ class ThousandsBrain:
 def load_mnist():
     path = 'mnist.pkl.gz'
     if not os.path.exists(path):
+        logging.info("MNIST file not found locally; downloading…")
         import urllib.request
-        urllib.request.urlretrieve("http://deeplearning.net/data/mnist/mnist.pkl.gz", path)
+        urllib.request.urlretrieve(
+            "https://raw.githubusercontent.com/mnielsen/neural-networks-and-deep-learning/master/data/mnist.pkl.gz",
+            path
+        )
+        logging.info("Download complete.")
+    logging.info("Loading MNIST…")
     with gzip.open(path, 'rb') as f:
         return pickle.load(f, encoding='latin1')
 
 def save_model(model, path='brain.pkl'):
+    logging.info(f"Saving model to {path}")
     with open(path, 'wb') as f:
         pickle.dump(model, f)
 
 def load_model(path='brain.pkl'):
+    logging.info(f"Loading model from {path}")
     with open(path, 'rb') as f:
         return pickle.load(f)
 
 def evaluate(brain, x_test, y_test):
-    preds = [brain.predict(x.reshape(28, 28)) for x in x_test]
+    logging.info("Evaluating model…")
+    preds = []
+    for i, x in enumerate(tqdm(x_test, desc="Evaluation")):
+        preds.append(brain.predict(x.reshape(28, 28)))
     acc = np.mean(np.array(preds) == y_test)
+    logging.info(f"Evaluation accuracy: {acc:.4f} ({int(acc*len(y_test))}/{len(y_test)} correct)")
     return acc
 
 def visualize_3d(brain):
+    logging.info("Visualizing 3D neuron positions…")
     fig = plt.figure(figsize=(12, 8))
     ax = fig.add_subplot(111, projection='3d')
     colors = ['red', 'green', 'blue', 'orange']
@@ -166,18 +191,21 @@ def visualize_3d(brain):
     plt.show()
 
 if __name__ == "__main__":
+    logging.info("Starting M-Brain experiment")
     (x_train, y_train), (x_valid, y_valid), (x_test, y_test) = load_mnist()
+    logging.info(f"MNIST loaded: {len(x_train)} train, {len(x_valid)} valid, {len(x_test)} test")
     brain = ThousandsBrain()
     visualize_3d(brain)
 
     train_epochs = 3
     batch = 1000
     for epoch in range(train_epochs):
+        logging.info(f"Epoch {epoch + 1}/{train_epochs}")
         idx = np.random.choice(len(x_train), batch, replace=False)
-        for i in tqdm(idx, desc=f"Epoch {epoch+1}"):
+        for i in tqdm(idx, desc="Training"):
             brain.train_step(x_train[i], y_train[i])
         acc = evaluate(brain, x_test[:1000], y_test[:1000])
-        print(f"Epoch {epoch+1} accuracy: {acc:.3f}")
+        logging.info(f"Epoch {epoch + 1} accuracy: {acc:.4f}")
         save_model(brain)
     final_acc = evaluate(brain, x_test, y_test)
-    print(f"Final accuracy: {final_acc:.3f}")
+    logging.info(f"Final test accuracy: {final_acc:.4f}")

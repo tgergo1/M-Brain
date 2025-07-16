@@ -209,3 +209,4 @@ __marimo__/
 results/cortex_architecture.png
 /src/experiments/MNIST
 /training_logs
+src/experiments/mnist.pkl.gz
