@@ -1,6 +1,3 @@
-Of course. Here is the complete content of the `README.md` file.
-
-````markdown
 # M-Brain: A Grand-Scale cortical simulation
 
 This repository provides a high-performance, parallelized simulation environment for exploring computational concepts inspired by the Thousand Brains Theory. The project has evolved from a simple interactive demo into a research tool designed for large-scale, data-driven experiments on object recognition and learning.
@@ -101,6 +98,3 @@ You can generate two different views of the simulated network.
 ## Configuration
 
 All key parameters for the simulation can be modified in `src/config.py`. This includes the number of cortical columns, the size of the dataset, the complexity of the grid cell systems, and more, allowing for easy experimentation.
-
-```
-```
