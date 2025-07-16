@@ -1,6 +1,6 @@
 import jax.numpy as jnp
 from jax import random
-from jax import config as jax_config # Corrected import
+from jax import config as jax_config
 import numpy as np
 import json
 from tqdm import tqdm
@@ -13,7 +13,6 @@ import datetime
 import types
 import os
 
-# Enable 64-bit precision for JAX
 jax_config.update("jax_enable_x64", True)
 
 from src import config
@@ -63,14 +62,17 @@ def build_cortex_from_config() -> Cortex:
     return Cortex(columns)
 
 def training_worker(args):
-    """Worker trains an expert cortex using JAX."""
+    """
+    Worker trains a cortex and returns ONLY the learned data (the object model's storage),
+    not the entire heavy cortex object.
+    """
     position, obj_name, instances, seed = args
     pid = os.getpid()
     log(f"[Worker PID: {pid}, Core: {position}] Starting training for '{obj_name}'")
     
     key = random.PRNGKey(seed)
-
     cortex = build_cortex_from_config()
+
     for instance_features in tqdm(instances, desc=f"  ↳ PID {pid} Training '{obj_name}'", position=position, leave=False, ncols=100):
         key, subkey = random.split(key)
         movements, features, key = generate_sensory_sequence(
@@ -78,8 +80,10 @@ def training_worker(args):
         )
         cortex.process_sensory_sequence(movements, features, learn=True, obj_name=obj_name)
 
-    log(f"[Worker PID: {pid}, Core: {position}] Finished training for '{obj_name}'")
-    return cortex
+    # **CRITICAL CHANGE**: Extract and return ONLY the learned data from each column.
+    learned_data = [col.layer2_3.object_model.storage for col in cortex.columns]
+    log(f"[Worker PID: {pid}, Core: {position}] Finished training for '{obj_name}', returning learned data.")
+    return learned_data
 
 def testing_worker(args):
     """Worker tests against the master cortex using JAX."""
@@ -105,34 +109,37 @@ def testing_worker(args):
     return true_obj_name, local_confusion_matrix, correct_count, total_count
 
 def main():
+    """Main execution function, wrapped for safety."""
     mp.set_start_method('spawn', force=True)
     start_time = time.time()
-    log("--- Grand Scale M-Brain Simulation (JAX/GPU Accelerated) ---")
+    log("--- Grand Scale M-Brain Simulation (JAX/GPU Accelerated, Optimized IPC) ---")
 
     log("Phase 1: Generating datasets...")
     train_data = generate_dataset(config.NUM_OBJECT_TYPES, config.FEATURES_PER_OBJECT, config.DATASET_SIZE_TRAIN, desc="Train Dataset")
     test_data = generate_dataset(config.NUM_OBJECT_TYPES, config.FEATURES_PER_OBJECT, config.DATASET_SIZE_TEST, desc="Test Dataset")
     log("Phase 1 Complete.")
 
-    log("Phase 2: Parallel Training of Expert Cortices...")
+    log("Phase 2: Parallel Training of Expert Models...")
     num_processes = min(mp.cpu_count(), len(train_data))
     log(f"Spawning {num_processes} workers for JAX-based training...")
     training_tasks = [(i + 1, name, inst, int(start_time) + i) for i, (name, inst) in enumerate(train_data.items())]
 
     with mp.Pool(processes=num_processes) as pool:
-        expert_cortices = list(tqdm(pool.imap(training_worker, training_tasks), total=len(training_tasks), desc="Overall Training Progress", ncols=100))
+        # This now receives a list of lists of dictionaries, which is much faster.
+        all_learned_data = list(tqdm(pool.imap(training_worker, training_tasks), total=len(training_tasks), desc="Overall Training Progress", ncols=100))
     log("Phase 2 Complete.")
 
     log("Phase 3: Merging expert knowledge into Master Cortex...")
     master_cortex = build_cortex_from_config()
-    for expert_cortex in tqdm(expert_cortices, desc="Merging Knowledge", ncols=100):
-        for master_col, expert_col in zip(master_cortex.columns, expert_cortex.columns):
-            expert_storage = expert_col.layer2_3.object_model.storage
-            master_col.layer2_3.object_model.storage.update(expert_storage)
+    # This loop is fast as it only merges the lightweight data structures.
+    for expert_data_per_cortex in tqdm(all_learned_data, desc="Merging Knowledge", ncols=100):
+        for i, column_data in enumerate(expert_data_per_cortex):
+            # Update the master cortex's corresponding column with the learned data.
+            master_cortex.columns[i].layer2_3.object_model.storage.update(column_data)
     log("Phase 3 Complete.")
 
     log("Phase 4: Parallel Testing against Master Cortex...")
-    log("Distributing the Master Cortex to workers...")
+    log("Distributing the Master Cortex to workers (this may take a moment)...")
     testing_tasks = [(i + 1, name, inst, master_cortex, int(start_time) + 1000 + i) for i, (name, inst) in enumerate(test_data.items())]
     num_processes = min(mp.cpu_count(), len(testing_tasks))
     log(f"Spawning {num_processes} workers for JAX-based testing...")
@@ -182,5 +189,6 @@ def main():
         json.dump(metrics, f, indent=4)
     log(f"Save complete.")
 
+# Add the standard multiprocessing guard
 if __name__ == "__main__":
     main()

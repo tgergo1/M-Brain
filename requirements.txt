@@ -6,5 +6,7 @@ seaborn
 pandas
 graphviz
 jax
-jax-metal
+jax-metal 
 pygame
+tensorflow
+tensorflow-datasets

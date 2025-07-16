@@ -1,68 +1,55 @@
-from typing import List, Dict
-from collections import Counter
+from typing import List, Tuple, Dict
+from collections import Counter, defaultdict
 import random
 from .cortical_column import CorticalColumn
 
 class Cortex:
-    """
-    Collection of cortical columns that performs an iterative voting process to reach consensus.
-    """
     def __init__(self, columns: List[CorticalColumn]):
         self.columns = columns
-        # A simple proximity graph for lateral communication.
-        self.column_neighbors = {i: random.sample(range(len(columns)), k=min(10, len(columns)-1))
-                                 for i in range(len(columns))}
 
-    def process_sensory_sequence(self, movement_sequence, feature_sequence, learn=False, obj_name=None):
-        """
-        Processes a sequence, either for learning (distributed) or for prediction (with consensus).
-        """
+    def process_sensory_sequence(self, movement_sequence, feature_sequence, learn=False, obj_name=None, return_active_columns=False):
         if learn:
             for movement, feature in zip(movement_sequence, feature_sequence):
                 for col in self.columns:
                     col.process_input(movement, feature, learn=True, obj_name=obj_name)
-            return None
-        else:
-            final_votes = Counter()
-            for movement, feature in zip(movement_sequence, feature_sequence):
-                for col in self.columns:
-                    col.process_input(movement, feature, learn=False)
+            return
+        
+        # Prediction mode
+        final_votes = Counter()
+        active_columns_by_vote = defaultdict(list)
 
-                consensus = self.reach_consensus()
-                if consensus:
-                    final_votes.update(consensus)
+        for movement, feature in zip(movement_sequence, feature_sequence):
+            for i, col in enumerate(self.columns):
+                col.process_input(movement, feature, learn=False)
+                # Get votes from this column for the current feature
+                votes = col.vote()
+                for vote in votes:
+                    final_votes.update([vote])
+                    # Track that this column (i) voted for this object (vote)
+                    if i not in active_columns_by_vote[vote]:
+                        active_columns_by_vote[vote].append(i)
+        
+        if return_active_columns:
+            return final_votes, active_columns_by_vote
+        else:
             return final_votes
 
-    def reach_consensus(self, iterations: int = 3, initial_confidence: float = 0.5) -> Counter:
-        """
-        Simulates lateral communication between columns to converge on an answer.
-        """
-        column_hypotheses = [col.vote() for col in self.columns]
-        confidence_scores = []
-        for hypotheses in column_hypotheses:
-            scores = {obj: initial_confidence for obj in hypotheses}
-            confidence_scores.append(scores)
+    def apply_targeted_feedback(self, locations: List[Tuple], features: List[str], obj_name: str, column_indices: List[int], learn_rate: float):
+        """Applies feedback ONLY to the specified columns."""
+        if not column_indices:
+            return
 
-        for _ in range(iterations):
-            new_confidence_scores = [scores.copy() for scores in confidence_scores]
-            for i, col_scores in enumerate(confidence_scores):
-                for obj in col_scores:
-                    neighbor_support = 0
-                    for neighbor_idx in self.column_neighbors[i]:
-                        if obj in confidence_scores[neighbor_idx]:
-                            neighbor_support += confidence_scores[neighbor_idx][obj]
-
-                    total_possible_support = sum(initial_confidence for _ in self.column_neighbors[i])
-                    if total_possible_support > 0:
-                        reinforcement = neighbor_support / total_possible_support
-                        new_confidence_scores[i][obj] *= (1 + reinforcement) / 2
-
-            confidence_scores = new_confidence_scores
-
-        final_votes = Counter()
-        for scores in confidence_scores:
-            if scores:
-                best_obj = max(scores, key=scores.get)
-                final_votes.update([best_obj])
-
-        return final_votes
+        # Apply feedback to a random subset of the feature-location pairs
+        num_feedback_steps = int(abs(learn_rate) * len(features))
+        for _ in range(num_feedback_steps):
+            idx = random.randint(0, len(features) - 1)
+            loc, feat = locations[idx], features[idx]
+            
+            # Apply feedback to a random column from the active set
+            col_idx = random.choice(column_indices)
+            column_to_modify = self.columns[col_idx]
+            
+            if learn_rate < 0: # Unlearning
+                column_to_modify.layer2_3.object_model.unlearn(obj_name, loc, feat)
+            else: # Reinforcement
+                column_to_modify.layer2_3.object_model.learn(obj_name, loc, feat)
