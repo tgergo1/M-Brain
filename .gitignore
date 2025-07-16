@@ -210,3 +210,8 @@ results/cortex_architecture.png
 /src/experiments/MNIST
 /training_logs
 src/experiments/mnist.pkl.gz
+src/experiments/mnist_cache.pkl
+src/experiments/test_images.gz
+src/experiments/test_labels.gz
+src/experiments/train_images.gz
+src/experiments/train_labels.gz
